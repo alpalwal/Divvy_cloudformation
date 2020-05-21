@@ -1,7 +1,5 @@
 #CFT for setting up EDH on a Producer account in DivvyCloud
 #https://docsdivvycloud.com/docs/event-driven-harvesting-aws
-#Alex C
-#2-7-19
 
 AWSTemplateFormatVersion: '2010-09-09'
 Description: DivvyCloud Policies and optional CloudTrail for EDH
