@@ -27,10 +27,10 @@ Resources:
       InstanceProfileName: DivvyCloudInstanceProfile
 
   PolicyPowerUser:
-    Type: AWS::IAM::Policy
+    Type: AWS::IAM::ManagedPolicy
     Condition: AddPowerUser
     Properties:
-      PolicyName: DivvyCloud-PowerUser-Policy
+      ManagedPolicyName: DivvyCloud-PowerUser-Policy
       Roles:
       - Ref: Role
       PolicyDocument:
@@ -39,10 +39,10 @@ Resources:
           Parameters:
             Location: s3://get.divvycloud.com/policies/PowerUserPolicy.json
   PolicyReadOnly1:
-    Type: AWS::IAM::Policy
+    Type: AWS::IAM::ManagedPolicy
     Condition: AddStandardUser
     Properties:
-      PolicyName: DivvyCloud-StandardUser-Policy1
+      ManagedPolicyName: DivvyCloud-StandardUser-Policy1
       Roles:
       - Ref: Role
       PolicyDocument:
@@ -52,10 +52,10 @@ Resources:
             Location: s3://get.divvycloud.com/policies/ReadOnlyPolicy1.json
 
   PolicyReadOnly2:
-    Type: AWS::IAM::Policy
+    Type: AWS::IAM::ManagedPolicy
     Condition: AddStandardUser
     Properties:
-      PolicyName: DivvyCloud-StandardUser-Policy2
+      ManagedPolicyName: DivvyCloud-StandardUser-Policy2
       Roles:
       - Ref: Role
       PolicyDocument:
@@ -65,10 +65,10 @@ Resources:
             Location: s3://get.divvycloud.com/policies/ReadOnlyPolicy2.json
 
   PolicyReadOnly3:
-    Type: AWS::IAM::Policy
+    Type: AWS::IAM::ManagedPolicy
     Condition: AddStandardUser
     Properties:
-      PolicyName: DivvyCloud-StandardUser-Policy3
+      ManagedPolicyName: DivvyCloud-StandardUser-Policy3
       Roles:
       - Ref: Role
       PolicyDocument:
@@ -78,9 +78,9 @@ Resources:
             Location: s3://get.divvycloud.com/policies/ReadOnlyPolicy3.json
 
   PolicySTS:
-    Type: AWS::IAM::Policy
+    Type: AWS::IAM::ManagedPolicy
     Properties:
-      PolicyName: DivvyCloud-STS-Policy
+      ManagedPolicyName: DivvyCloud-STS-Policy
       Roles:
       - Ref: Role
       PolicyDocument:

@@ -45,9 +45,9 @@ Conditions:
 
 Resources:
   EDHConsumerPolicy:
-    Type: AWS::IAM::Policy
+    Type: AWS::IAM::ManagedPolicy
     Properties:
-      PolicyName: DivvyCloud-EDH-Consumer
+      ManagedPolicyName: DivvyCloud-EDH-Consumer
       Roles:
       - Ref: RoleName
       PolicyDocument:
@@ -86,9 +86,9 @@ Resources:
   CloudTrailCWLogsDeliveryPolicy:
     Condition: ShouldCreateTrail  
     DependsOn: CloudTrailCWLogsDeliveryRole
-    Type: AWS::IAM::Policy
+    Type: AWS::IAM::ManagedPolicy
     Properties:
-      PolicyName: DivvyCloud-EDH-Consumer
+      ManagedPolicyName: DivvyCloud-EDH-Consumer
       Roles:
       - Ref: CloudTrailCWLogsDeliveryRole
       PolicyDocument:

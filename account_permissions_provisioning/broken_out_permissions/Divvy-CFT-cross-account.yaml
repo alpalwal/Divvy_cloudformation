@@ -29,10 +29,10 @@ Conditions:
 
 Resources:
   PolicyPowerUser:
-    Type: AWS::IAM::Policy
+    Type: AWS::IAM::ManagedPolicy
     Condition: AddPowerUser
     Properties:
-      PolicyName: DivvyCloud-PowerUser-Policy
+      ManagedPolicyName: DivvyCloud-PowerUser-Policy
       Roles:
       - Ref: Role
       PolicyDocument:
@@ -43,10 +43,10 @@ Resources:
 
   #Read only policy exceeds AWS limits and must be broken into two
   PolicyReadOnly1:
-    Type: AWS::IAM::Policy
+    Type: AWS::IAM::ManagedPolicy
     Condition: AddStandardUser
     Properties:
-      PolicyName: DivvyCloudStandardUserPolicy1
+      ManagedPolicyName: DivvyCloudStandardUserPolicy1
       Roles:
       - Ref: Role
       PolicyDocument:
@@ -57,10 +57,10 @@ Resources:
 
   #Read only policy exceeds AWS limits and must be broken into three. There is no significance to the breakdown
   PolicyReadOnly2:
-    Type: AWS::IAM::Policy
+    Type: AWS::IAM::ManagedPolicy
     Condition: AddStandardUser
     Properties:
-      PolicyName: DivvyCloudStandardUserPolicy2
+      ManagedPolicyName: DivvyCloudStandardUserPolicy2
       Roles:
       - Ref: Role
       PolicyDocument:
@@ -70,10 +70,10 @@ Resources:
             Location: s3://get.divvycloud.com/policies/ReadOnlyPolicy2.json
   #Read only policy exceeds AWS limits and must be broken into two. There is no significance to the breakdown
   PolicyReadOnly3:
-    Type: AWS::IAM::Policy
+    Type: AWS::IAM::ManagedPolicy
     Condition: AddStandardUser
     Properties:
-      PolicyName: DivvyCloudStandardUserPolicy3
+      ManagedPolicyName: DivvyCloudStandardUserPolicy3
       Roles:
       - Ref: Role
       PolicyDocument:
