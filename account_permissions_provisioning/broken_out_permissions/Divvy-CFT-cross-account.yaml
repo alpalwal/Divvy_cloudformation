@@ -68,7 +68,7 @@ Resources:
       - Role
     Type: 'AWS::IAM::ManagedPolicy'
     Properties:
-      ManagedPolicyName: !Ref 'ParameterDivvyCloudcwPutMetricLogsPolicy'
+      ManagedPolicyName: DivvyCloud-CloudWatchPutMetricLogs-Policy
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
