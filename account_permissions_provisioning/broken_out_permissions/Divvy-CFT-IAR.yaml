@@ -39,7 +39,7 @@ Resources:
   PolicyCloudcwPutMetricLogs:
     Condition: AddStandardUser
     DependsOn:
-      - DivvyCloudStandardRole
+      - Role
     Type: 'AWS::IAM::ManagedPolicy'
     Properties:
       ManagedPolicyName: !Ref 'ParameterDivvyCloudcwPutMetricLogsPolicy'
@@ -59,7 +59,7 @@ Resources:
               - logs:CreateLogStream
             Resource: !Join [ '', [ "arn:aws:logs:", !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":log-group:DivvyCloud-EC2:log-stream:*" ] ]
       Roles:
-        - Ref: DivvyCloudStandardRole      
+        - Ref: Role      
 
   PolicyEDHConsumer:
     Type: AWS::IAM::ManagedPolicy
