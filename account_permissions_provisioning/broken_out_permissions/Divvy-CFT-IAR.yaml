@@ -36,6 +36,31 @@ Resources:
       - !Ref Role
       InstanceProfileName: DivvyCloudInstanceProfile
 
+  PolicyCloudcwPutMetricLogs:
+    Condition: AddStandardUser
+    DependsOn:
+      - DivvyCloudStandardRole
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      ManagedPolicyName: !Ref 'ParameterDivvyCloudcwPutMetricLogsPolicy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          -
+            Effect: Allow
+            Action: 
+              - cloudwatch:PutMetricData
+              - logs:CreateLogGroup
+            Resource: "*"
+          -
+            Effect: Allow
+            Action: 
+              - logs:PutLogEvents
+              - logs:CreateLogStream
+            Resource: !Join [ '', [ "arn:aws:logs:", !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":log-group:DivvyCloud-EC2:log-stream:*" ] ]
+      Roles:
+        - Ref: DivvyCloudStandardRole      
+
   PolicyEDHConsumer:
     Type: AWS::IAM::ManagedPolicy
     Condition: AddEDHConsumer
