@@ -54,7 +54,10 @@ Parameters:
       - Consumer
       - Producer
     Description: Permissions to enable DivvyCloud to configure Event Driven Harvesting (EDH)
-    
+  OrgID:
+    Type: String
+    Description: Enter the organization ID for this account. Only needed if this is being set up for the EDH Consumer
+
 Conditions:
   AddStandardUser: !Equals [ !Ref TypeOfUser, "Standard User" ]
   AddPowerUser: !Equals [ !Ref TypeOfUser, "Power User" ]
@@ -120,7 +123,21 @@ Resources:
           - sqs:DeleteMessageBatch
           Effect: Allow
           Resource: "*"
-      
+
+  EDHConsumerEventBusPolicy:
+    Type: AWS::Events::EventBusPolicy
+    Condition: AddEDHConsumer
+    Properties: 
+        Action: "events:PutEvents"
+        Principal: "*"
+        StatementId: "MyStatement"
+        Condition: 
+            Type: StringEquals
+            Key: "aws:PrincipalOrgID"
+            Value: 
+              Ref: OrgID
+            
+
   PolicyEDHProducer:
     Type: AWS::IAM::ManagedPolicy
     Condition: AddEDHProducer
