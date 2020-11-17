@@ -13,6 +13,7 @@ Metadata:
         Parameters:
           - ExternalId
           - SourceAccountId
+          - RoleName
       - Label:
           default: "Permissions"
         Parameters:
