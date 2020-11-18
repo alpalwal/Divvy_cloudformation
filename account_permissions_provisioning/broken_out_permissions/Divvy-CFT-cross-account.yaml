@@ -56,6 +56,7 @@ Parameters:
     Description: Permissions to enable DivvyCloud to configure Event Driven Harvesting (EDH)
   OrgID:
     Type: String
+    AllowedPattern: o-\S+
     Description: Enter the organization ID for this account. Only needed if this is being set up for the EDH Consumer
 
 Conditions:

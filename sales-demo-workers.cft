@@ -582,32 +582,32 @@ Resources:
   DivvyBacklogHigh: 
     Type: 'AWS::CloudWatch::Alarm'
     Properties:
-      AlarmDescription: Scale-up the workers ASG if divvy backlog is greater than 1000 for 30 minutes
+      AlarmDescription: Scale-up the workers ASG if divvy wait is greater than 3000 for 5 minutes
       Dimensions:
       - Name: Job Type
-        Value: Standard      
+        Value: Queue Wait      
       MetricName: Job Backlog
       Namespace: DivvyCloud
       Statistic: Average
-      Period: '3600'
+      Period: '300'
       EvaluationPeriods: '1'
-      Threshold: '20000'
+      Threshold: '3000'
       AlarmActions:
         - !Ref WorkersScaleUpPolicy
       ComparisonOperator: GreaterThanThreshold
   DivvyBacklogLow:  
     Type: 'AWS::CloudWatch::Alarm'
     Properties:
-      AlarmDescription: Scale-down the workers ASG if divvy backlog is less than 1000 for 30 minutes
+      AlarmDescription: Scale-down the workers ASG if divvy backlog is less than 3000 for 10 minutes
       Dimensions:
       - Name: Job Type
-        Value: Standard
+        Value: Queue Wait
       MetricName: Job Backlog
       Namespace: DivvyCloud
       Statistic: Average
-      Period: '3600'
-      EvaluationPeriods: '1'
-      Threshold: '20000'
+      Period: '300'
+      EvaluationPeriods: '2'
+      Threshold: '3000'
       AlarmActions:
         - !Ref WorkersScaleDownPolicy
       ComparisonOperator: LessThanThreshold
