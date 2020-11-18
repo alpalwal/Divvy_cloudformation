@@ -13,6 +13,7 @@ Metadata:
         Parameters:
           - ExternalId
           - SourceAccountId
+          - RoleName
       - Label:
           default: "Permissions"
         Parameters:
@@ -58,6 +59,11 @@ Parameters:
     Type: String
     AllowedPattern: o-\S+
     Description: Enter the organization ID for this account. Only needed if this is being set up for the EDH Consumer
+  RoleName:
+    Type: String
+    Description: Enter the name for the Role 
+    Default: DivvyCloudCrossAccountRole
+    AllowedPattern: '\S+'
 
 Conditions:
   AddStandardUser: !Equals [ !Ref TypeOfUser, "Standard User" ]
@@ -233,6 +239,7 @@ Resources:
   Role:
     Type: AWS::IAM::Role
     Properties:
+      RoleName: !Ref RoleName
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:

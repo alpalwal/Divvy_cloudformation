@@ -822,6 +822,8 @@ Resources:
               - - sed -i 's|latest|
                 - Ref: ParameterImageVersion
                 - '|g'' /divvycloud/docker-compose.yml'
+            - echo "" >> /divvycloud/prod.env
+            - echo "DIVVY_INSIGHTVM_SUPPORT=1" >> /divvycloud/prod.env
             - /usr/local/bin/docker-compose -f /divvycloud/docker-compose.yml up -d
             - cat<<EOF> /etc/cron.weekly/remove-docker-images
             - '#!/bin/sh'
@@ -979,6 +981,8 @@ Resources:
               - - sed -i 's|latest|
                 - Ref: ParameterImageVersion
                 - '|g'' /divvycloud/docker-compose.yml'
+            - echo "" >> /divvycloud/prod.env
+            - echo "DIVVY_INSIGHTVM_SUPPORT=1" >> /divvycloud/prod.env
             - /usr/local/bin/docker-compose -f /divvycloud/docker-compose.yml up -d
             - cat<<EOF> /etc/cron.weekly/remove-docker-images
             - '#!/bin/sh'
@@ -1145,6 +1149,8 @@ Resources:
               - - sed -i 's|latest|
                 - Ref: ParameterImageVersion
                 - '|g'' /divvycloud/docker-compose.yml'
+            - echo "" >> /divvycloud/prod.env
+            - echo "DIVVY_INSIGHTVM_SUPPORT=1" >> /divvycloud/prod.env
             - /usr/local/bin/docker-compose -f /divvycloud/docker-compose.yml up -d
             - cat<<EOF> /etc/cron.weekly/remove-docker-images
             - '#!/bin/sh'
