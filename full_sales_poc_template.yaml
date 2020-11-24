@@ -1,0 +1,935 @@
+# Currently supported regions:
+# ap-northeast-2, ap-southeast-2, eu-central-1, eu-north-1, eu-west-2, us-east-1, us-east-2, us-west-1, us-west-2
+# V1 - 1/24/20 - AlexC
+
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  DivvyCloud base deployment for enterprises. This template deploys the default
+  network resources and security groups for DivvyCloud
+Mappings:
+  VpcCidrs:
+    subnet1:
+      cidr: 172.31.0.0/20
+    subnet2:
+      cidr: 172.31.16.0/20
+    vpc:
+      cidr: 172.31.0.0/16
+    world:
+      cidr: 0.0.0.0/0
+  RegionMap:
+    ap-east-1:
+      '64': ami-dc98e2ad
+      'SSL': NA
+    ap-northeast-1:
+      '64': ami-0f6b4f4104d26f399
+      'SSL': NA
+    ap-northeast-2:
+      '64': ami-02b4a5559ce53a570
+      'SSL': arn:aws:acm:ap-northeast-2:625820357955:certificate/33826b52-66ca-43df-a8c8-83ae29cc20f7
+    ap-northeast-3:
+      '64': ami-05f50017c0424c060
+      'SSL': NA
+    ap-south-1:
+      '64': ami-0245841fc4b40e22f
+      'SSL': NA
+    ap-southeast-1:
+      '64': ami-07febfdfb4080320e
+      'SSL': NA
+    ap-southeast-2:
+      '64': ami-04a0f7552cff370ba
+      'SSL': arn:aws:acm:ap-southeast-2:625820357955:certificate/2c1f3431-f0b1-464a-a37f-5a4e2c8636b8
+    ca-central-1:
+      '64': ami-0972a0d3135cf1fc0
+      'SSL': NA
+    cn-north-1:
+      '64': ami-01993b4213b4bffb5
+      'SSL': NA
+    cn-northwest-1:
+      '64': ami-01d4e30d4d4952d0f
+      'SSL': NA
+    eu-central-1:
+      '64': ami-09356619876445425
+      'SSL': arn:aws:acm:eu-central-1:625820357955:certificate/2c9b53fe-fd7b-468a-b294-bd76273ffee2
+    eu-north-1:
+      '64': ami-005bc7d72deb72a3d
+      'SSL': arn:aws:acm:eu-north-1:625820357955:certificate/e02a8bfe-24d9-42e1-92cd-e755c3182d2c
+    eu-west-1:
+      '64': ami-04c58523038d79132
+      'SSL': NA
+    eu-west-2:
+      '64': ami-00622b440d92e55c0
+      'SSL': arn:aws:acm:eu-west-2:625820357955:certificate/39abd22c-d785-4bdd-a2db-489c6f854cfb
+    eu-west-3:
+      '64': ami-0b70d1460d5c7a299
+      'SSL': NA
+    me-south-1:
+      '64': ami-026d8603b92fddf7a
+      'SSL': NA
+    sa-east-1:
+      '64': ami-049f5d88d2d436431
+      'SSL': NA
+    us-east-1:
+      '64': ami-00a208c7cdba991ea
+      'SSL': arn:aws:acm:us-east-1:625820357955:certificate/9428d647-fb3a-477f-9b4d-695eb94aed98
+    us-east-2:
+      '64': ami-059d836af932792c3
+      'SSL': arn:aws:acm:us-east-2:625820357955:certificate/2ac4177d-fbf5-40b8-8ae0-09ab6bd1cdce
+    us-gov-east-1:
+      '64': ami-73db3802
+      'SSL': NA
+    us-gov-west-1:
+      '64': ami-99f6aaf8
+      'SSL': NA
+    us-west-1:
+      '64': ami-0f42d8c4eb586ccf7
+      'SSL': arn:aws:acm:us-west-1:625820357955:certificate/2d4d8556-4512-4125-8fbc-8c8dbc6c4f24
+    us-west-2:
+      '64': ami-0a7d051a1c4b54f65
+      'SSL': arn:aws:acm:us-west-2:625820357955:certificate/a5c413c9-ee30-449f-aa99-17dd7e54b211
+  WorkerMap:
+    m5.large:
+      'workers': 8    
+    m5.xlarge:
+      'workers': 16    
+    c4.xlarge:
+      'workers': 7    
+    c4.2xlarge:
+      'workers': 15    
+    c4.xlarge:
+      'workers': 8    
+    c4.2xlarge:
+      'workers': 16         
+
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterLabels:
+      ParameterCidr:
+        default: CIDR Block
+      ParameterCacheInstanceType:
+        default: Redis Instance Type
+      ParameterDBInstanceType:
+        default: RDS Instance Type
+      ParameterDBpassword:
+        default: Database Password
+      ParameterWorkerInstanceType:
+        default: Worker Instance Type
+      ParameterKey:
+        default: SSH Key Pair
+      ParameterOverrideDesiredCapacity:
+        default: Workers ASG desired capacity
+      ParameterInterfaceServerDesiredCapacity:
+        default: Interface Server ASG desired capacity
+      ParameterWebserverInstanceType:
+        default: Webserver/Scheduler Instance Type     
+
+Parameters:
+  ParameterCidr:
+    ConstraintDescription: Source CIDR block must be a valid notation.
+    Default: 0.0.0.0/0
+    Description: Source CIDR block of Web Server Load Balancer.
+    Type: String
+  ParameterCacheInstanceType:
+    AllowedValues:
+      - cache.t2.medium
+      - cache.t3.medium
+      - cache.m3.medium
+      - cache.m5.large
+      - cache.m5.xlarge
+    ConstraintDescription: Must be a valid Redis instance type for your AWS region.
+    Default: cache.t3.medium
+    Description: 'Redis instance type (e.g., cache.t2.medium or cache.m4.large).'
+    Type: String
+  ParameterDBInstanceType:
+    AllowedValues:
+      - db.t2.large
+      - db.t3.large
+      - db.m5.large
+      - db.m5.xlarge
+    ConstraintDescription: Must be a valid RDS instance type for your AWS region.
+    Default: db.m5.large
+    Description: 'RDS instance type (i.e., db.m5.large or db.m5.xlarge).'
+    Type: String
+  ParameterDBpassword:
+    AllowedPattern: '^[^"@\s\/]{8,41}$'
+    Description: >-
+      Enter your password for the database. Can include any printable ASCII
+      character except /, @, ", or ' '. Min and max lengths are 8 and 41
+      characters respectively.
+    MaxLength: '41'
+    MinLength: '8'
+    NoEcho: 'true'
+    Type: String
+  ParameterDBusername:
+    Default: divvy
+    Description: Enter your username for the database.
+    Type: String
+  ParameterImageVersion:
+    Default: v20.6.2
+    Description: DivvyCloud image version. Ex - v20.1.1
+    Type: String
+    AllowedPattern: v\d{2}.\d.\d
+  ParameterWorkerInstanceType:
+    AllowedValues:
+    - c4.xlarge
+    - c4.2xlarge
+    - c5.xlarge
+    - c5.2xlarge
+    - m5.large
+    - m5.xlarge
+    ConstraintDescription: Must be a valid EC2 HVM instance type for your AWS AZs.
+    Default: m5.large
+    Description: EC2 HVM instance type (e.g., c5.xlarge, etc.).
+    Type: String
+  ParameterKey:
+    AllowedPattern: \S{1,}
+    ConstraintDescription: Must be the name of an existing EC2 KeyPair in this Region.
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+  ParameterOverrideDesiredCapacity:
+    AllowedValues:
+    - '1'
+    - '2'
+    - '3'
+    - '4'
+    - '5'
+    - '6'
+    - '7'
+    - '8'
+    ConstraintDescription: Must be between 1 and 8
+    Default: '2'
+    Description: Used for separate Workers ASG
+    Type: String
+  ParameterInterfaceServerDesiredCapacity:
+    AllowedValues:
+    - '1'
+    - '2'
+    - '3'
+    ConstraintDescription: Must be between 1 and 3
+    Default: '2'
+    Description: Used for Interface Server ASG
+    Type: String
+  ParameterWebserverInstanceType:
+    AllowedValues:
+    - c4.large
+    - c4.xlarge
+    - c5.large
+    - c5.xlarge
+    - m5.xlarge
+    ConstraintDescription: Must be a valid EC2 HVM instance type for your AWS AZs.
+    Default: c5.large
+    Description: EC2 HVM instance type (e.g., c4.large, c5.xlarge, etc.).
+    Type: String
+
+Resources:
+  AutoScalingGroupInterfaceServer:
+    DependsOn:
+      - LaunchConfigurationInterfaceServer
+      - LoadBalancerDivvy
+    Properties:
+      DesiredCapacity:
+        Ref: ParameterInterfaceServerDesiredCapacity
+      LaunchConfigurationName:
+        Ref: LaunchConfigurationInterfaceServer
+      LoadBalancerNames:
+      - Ref: LoadBalancerDivvy
+      MaxSize: '3'
+      MinSize: '1'
+      Tags:
+      - Key: Name
+        PropagateAtLaunch: 'true'
+        Value: DivvyCloudWebserver
+      VPCZoneIdentifier:
+      - !Ref SubnetDivvy1of2
+      - !Ref SubnetDivvy2of2
+    Type: AWS::AutoScaling::AutoScalingGroup
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MinInstancesInService: 1       
+  AutoScalingGroupScheduler:
+    DependsOn:
+      - LaunchConfigurationScheduler
+    Properties:
+      DesiredCapacity: '1'
+      LaunchConfigurationName:
+        Ref: LaunchConfigurationScheduler
+      MaxSize: '2'
+      MinSize: '1'
+      Tags:
+      - Key: Name
+        PropagateAtLaunch: 'true'
+        Value: DivvyCloudScheduler
+      VPCZoneIdentifier:
+      - !Ref SubnetDivvy1of2
+    Type: AWS::AutoScaling::AutoScalingGroup
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MinInstancesInService: 1
+  AutoScalingGroupWorkers:
+    DependsOn:
+      - LaunchConfigurationWorkers
+    Properties:
+      DesiredCapacity:
+        Ref: ParameterOverrideDesiredCapacity
+      LaunchConfigurationName:
+        Ref: LaunchConfigurationWorkers
+      MaxSize: '8'
+      MinSize: '1'
+      Tags:
+      - Key: Name
+        PropagateAtLaunch: 'true'
+        Value: DivvyCloudWorkers
+      VPCZoneIdentifier:
+      - !Ref SubnetDivvy1of2
+      - !Ref SubnetDivvy2of2
+    Type: AWS::AutoScaling::AutoScalingGroup
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MinInstancesInService: 1  
+  CacheClusterDivvy:
+    Type: 'AWS::ElastiCache::CacheCluster'
+    DependsOn: 
+      - SecurityGroupDivvyRedis
+      - VPCDivvy
+      - VPCGatewayAttachmentDivvy
+    Properties:
+      AZMode: single-az
+      AutoMinorVersionUpgrade: 'true'
+      CacheNodeType: !Ref ParameterCacheInstanceType
+      CacheSubnetGroupName: !Ref SubnetGroupDivvyRedis
+      Engine: redis
+      EngineVersion: 4.0.10
+      NumCacheNodes: '1'
+      PreferredMaintenanceWindow: 'fri:08:00-fri:09:00'
+      VpcSecurityGroupIds: 
+        - !GetAtt "SecurityGroupDivvyRedis.GroupId" 
+  DBInstanceDivvy:
+    Type: 'AWS::RDS::DBInstance'
+    DependsOn:
+      - CacheClusterDivvy
+    Properties:
+      AllocatedStorage: '100'
+      AllowMajorVersionUpgrade: 'false'
+      BackupRetentionPeriod: '7'
+      CopyTagsToSnapshot: 'true'
+      DBInstanceClass: !Ref ParameterDBInstanceType
+      DBName: divvy
+      DBSubnetGroupName: !Ref DBSubnetGroupDivvyRDS
+      Engine: mysql
+      EngineVersion: 5.7.17
+      LicenseModel: general-public-license
+      MasterUsername: divvy
+      MasterUserPassword: !Ref ParameterDBpassword
+      MultiAZ: 'false'
+      Port: 3306
+      PreferredBackupWindow: '09:52-10:22'
+      PreferredMaintenanceWindow: 'wed:04:37-wed:05:07'
+      StorageEncrypted: 'true'
+      StorageType: gp2
+      VPCSecurityGroups: 
+        - !GetAtt "SecurityGroupDivvyRDS.GroupId" 
+  DBSubnetGroupDivvyRDS:
+    DependsOn:
+      - VPCDivvy
+      - SubnetDivvy1of2
+      - SubnetDivvy2of2
+    Properties:
+      DBSubnetGroupDescription: Created from the RDS Management Console
+      SubnetIds:
+        - !Ref SubnetDivvy1of2
+        - !Ref SubnetDivvy2of2
+    Type: 'AWS::RDS::DBSubnetGroup'
+  DHCPOptionsDivvy:
+    Properties:
+      DomainName: ec2.internal
+      DomainNameServers:
+        - AmazonProvidedDNS
+    Type: 'AWS::EC2::DHCPOptions'
+  InternetGatewayDivvy:
+    DependsOn: VPCDivvy
+    Properties:
+      Tags:
+        - Key: Name
+          Value: DivvyCloud-InternetGateway
+    Type: 'AWS::EC2::InternetGateway'
+  InterfaceServerCPUHigh: 
+    DependsOn: AutoScalingGroupInterfaceServer
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmDescription: Scale-up the interface server ASG if the CPU utilization is over 60% for 30 minutes
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value:
+          Ref: AutoScalingGroupInterfaceServer      
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: '600'
+      EvaluationPeriods: '1'
+      Threshold: '60'
+      AlarmActions:
+        - !Ref InterfaceServerScaleUpPolicy
+      ComparisonOperator: GreaterThanThreshold
+  InterfaceServerCPULow: 
+    DependsOn: AutoScalingGroupInterfaceServer
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmDescription: Scale-down the interface server ASG if the CPU utilization is under 60% for 30 minutes
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value:
+          Ref: AutoScalingGroupInterfaceServer           
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: '600'
+      EvaluationPeriods: '1'
+      Threshold: '60'
+      AlarmActions:
+        - !Ref InterfaceServerScaleDownPolicy
+      ComparisonOperator: LessThanThreshold    
+  InterfaceServerScaleDownPolicy:
+    DependsOn: AutoScalingGroupInterfaceServer
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName:
+        Ref: AutoScalingGroupInterfaceServer
+      Cooldown: '3600'
+      ScalingAdjustment: '-1'
+  InterfaceServerScaleUpPolicy:
+    DependsOn: AutoScalingGroupInterfaceServer
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName:
+        Ref: AutoScalingGroupInterfaceServer
+      Cooldown: '3600'
+      ScalingAdjustment: '1'      
+  LaunchConfigurationInterfaceServer:
+    DependsOn: SecurityGroupDivvyWorkers
+    Properties:
+      AssociatePublicIpAddress: 'true' 
+      BlockDeviceMappings:
+      - DeviceName: /dev/sda1
+        Ebs:
+          VolumeSize: '50'
+          VolumeType: gp2
+      EbsOptimized: 'true'
+      IamInstanceProfile: divvy-poc-sts
+      ImageId:
+        Fn::FindInMap:
+        - RegionMap
+        - Ref: AWS::Region
+        - '64'
+      InstanceMonitoring: 'true'
+      InstanceType:
+        Ref: ParameterWebserverInstanceType
+      KeyName:
+        Ref: ParameterKey
+      SecurityGroups:
+      - !Ref SecurityGroupDivvyWorkers
+      UserData:
+        Fn::Base64:
+          Fn::Join:
+          - '
+
+            '
+          - - '#!/bin/bash -xe'
+            - apt-get update
+            - DEBIAN_FRONTEND=noninteractive apt-get upgrade -yq
+            - apt-get install -y mysql-client
+            - curl -s https://s3.amazonaws.com/get.divvycloud.com/prod.html | bash
+            - Fn::Join:
+              - ''
+              - - sed -i 's|DIVVY_DB_HOST=mysql|DIVVY_DB_HOST=
+                - !GetAtt
+                  - DBInstanceDivvy
+                  - Endpoint.Address
+                - '|g'' /divvycloud/prod.env'
+            - Fn::Join:
+              - ''
+              - - sed -i 's|DIVVY_DB_PASSWORD=divvy|DIVVY_DB_PASSWORD=
+                - !Ref ParameterDBpassword
+                - '|g'' /divvycloud/prod.env'
+            - Fn::Join:
+              - ''
+              - - sed -i 's|DIVVY_SECRET_DB_HOST=mysql|DIVVY_SECRET_DB_HOST=
+                - !GetAtt
+                  - DBInstanceDivvy
+                  - Endpoint.Address
+                - '|g'' /divvycloud/prod.env'
+            - Fn::Join:
+              - ''
+              - - sed -i 's|DIVVY_SECRET_DB_PASSWORD=divvy|DIVVY_SECRET_DB_PASSWORD=
+                - !Ref ParameterDBpassword
+                - '|g'' /divvycloud/prod.env'
+            - Fn::Join:
+              - ''
+              - - sed -i 's|DIVVY_REDIS_HOST=redis|DIVVY_REDIS_HOST=
+                - !GetAtt
+                  - CacheClusterDivvy
+                  - RedisEndpoint.Address
+                - '|g'' /divvycloud/prod.env'
+            - Fn::Join:
+              - ''
+              - - 'mysql -h '
+                - !GetAtt
+                  - DBInstanceDivvy
+                  - Endpoint.Address
+                - ' -u '
+                - !Ref ParameterDBusername
+                - ' -p'
+                - !Ref ParameterDBpassword
+                - ' -e "CREATE DATABASE IF NOT EXISTS divvykeys;"'
+            - sed -i '21,$d' /divvycloud/docker-compose.yml
+            - Fn::Join:
+              - ''
+              - - sed -i 's|latest|
+                - Ref: ParameterImageVersion
+                - '|g'' /divvycloud/docker-compose.yml'
+            - printf '\nDIVVY_PRODUCT_ANALYTICS_ENABLED=1' >>  /divvycloud/prod.env             
+            - /usr/local/bin/docker-compose -f /divvycloud/docker-compose.yml up -d
+            - cat<<EOF> /etc/cron.weekly/remove-docker-images
+            - '#!/bin/sh'
+            - '# Clean up docker-images'
+            - docker image prune -f
+            - EOF
+            - chmod 755 /etc/cron.weekly/remove-docker-images
+    Type: AWS::AutoScaling::LaunchConfiguration
+  LaunchConfigurationScheduler:
+    DependsOn: SecurityGroupDivvyWorkers
+    Properties:
+      AssociatePublicIpAddress: 'true'
+      BlockDeviceMappings:
+      - DeviceName: /dev/sda1
+        Ebs:
+          VolumeSize: '50'
+          VolumeType: gp2
+      EbsOptimized: 'true'
+      ImageId:
+        Fn::FindInMap:
+        - RegionMap
+        - Ref: AWS::Region
+        - '64'
+      InstanceMonitoring: 'true'
+      InstanceType:
+        Ref: ParameterWebserverInstanceType
+      KeyName:
+        Ref: ParameterKey
+      SecurityGroups:
+      - !Ref SecurityGroupDivvyWorkers
+      UserData:
+        Fn::Base64: 
+          Fn::Join:
+          - '
+
+            '
+          - - '#!/bin/bash -xe'
+            - apt-get update
+            - DEBIAN_FRONTEND=noninteractive apt-get upgrade -yq
+            - apt-get install -y mysql-client
+            - curl -s https://s3.amazonaws.com/get.divvycloud.com/prod.html | bash
+            - Fn::Join:
+              - ''
+              - - sed -i 's|DIVVY_DB_HOST=mysql|DIVVY_DB_HOST=
+                - !GetAtt
+                  - DBInstanceDivvy
+                  - Endpoint.Address
+                - '|g'' /divvycloud/prod.env'
+            - Fn::Join:
+              - ''
+              - - sed -i 's|DIVVY_DB_PASSWORD=divvy|DIVVY_DB_PASSWORD=
+                - !Ref ParameterDBpassword
+                - '|g'' /divvycloud/prod.env'
+            - Fn::Join:
+              - ''
+              - - sed -i 's|DIVVY_SECRET_DB_HOST=mysql|DIVVY_SECRET_DB_HOST=
+                - !GetAtt
+                  - DBInstanceDivvy
+                  - Endpoint.Address
+                - '|g'' /divvycloud/prod.env'
+            - Fn::Join:
+              - ''
+              - - sed -i 's|DIVVY_SECRET_DB_PASSWORD=divvy|DIVVY_SECRET_DB_PASSWORD=
+                - !Ref ParameterDBpassword
+                - '|g'' /divvycloud/prod.env'
+            - Fn::Join:
+              - ''
+              - - sed -i 's|DIVVY_REDIS_HOST=redis|DIVVY_REDIS_HOST=
+                - !GetAtt
+                  - CacheClusterDivvy
+                  - RedisEndpoint.Address
+                - '|g'' /divvycloud/prod.env'
+            - Fn::Join:
+              - ''
+              - - 'mysql -h '
+                - !GetAtt
+                  - DBInstanceDivvy
+                  - Endpoint.Address
+                - ' -u '
+                - !Ref ParameterDBusername
+                - ' -p'
+                - !Ref ParameterDBpassword
+                - ' -e "CREATE DATABASE IF NOT EXISTS divvykeys;"'
+            - sed -i '37,$d' /divvycloud/docker-compose.yml
+            - sed -i '3,20d' /divvycloud/docker-compose.yml
+            - Fn::Join:
+              - ''
+              - - sed -i 's|latest|
+                - Ref: ParameterImageVersion
+                - '|g'' /divvycloud/docker-compose.yml'
+            - printf '\nDIVVY_PRODUCT_ANALYTICS_ENABLED=1' >>  /divvycloud/prod.env                             
+            - /usr/local/bin/docker-compose -f /divvycloud/docker-compose.yml up -d
+            - cat<<EOF> /etc/cron.weekly/remove-docker-images
+            - '#!/bin/sh'
+            - '# Clean up docker-images'
+            - docker image prune -f
+            - EOF
+            - chmod 755 /etc/cron.weekly/remove-docker-images
+    Type: AWS::AutoScaling::LaunchConfiguration
+  LaunchConfigurationWorkers:
+    DependsOn: VPCDivvy
+    Properties:
+      AssociatePublicIpAddress: 'true'
+      BlockDeviceMappings:
+      - DeviceName: /dev/sda1
+        Ebs:
+          VolumeSize: '50'
+          VolumeType: gp2
+      EbsOptimized: 'true'
+      IamInstanceProfile: divvy-poc-sts
+      ImageId:
+        Fn::FindInMap:
+        - RegionMap
+        - Ref: AWS::Region
+        - '64'
+      InstanceMonitoring: 'true'
+      InstanceType:
+        Ref: ParameterWorkerInstanceType
+      KeyName:
+        Ref: ParameterKey
+      SecurityGroups:
+      - !Ref SecurityGroupDivvyWorkers
+      UserData:
+        Fn::Base64:
+          Fn::Join:
+          - '
+
+            '
+          - - '#!/bin/bash -xe'
+            - apt-get update
+            - DEBIAN_FRONTEND=noninteractive apt-get upgrade -yq
+            - apt-get install -y mysql-client
+            - curl -s https://s3.amazonaws.com/get.divvycloud.com/prod.html | bash
+            - Fn::Join:
+              - ''
+              - - sed -i 's|DIVVY_DB_HOST=mysql|DIVVY_DB_HOST=
+                - !GetAtt
+                  - DBInstanceDivvy
+                  - Endpoint.Address
+                - '|g'' /divvycloud/prod.env'
+            - Fn::Join:
+              - ''
+              - - sed -i 's|DIVVY_DB_PASSWORD=divvy|DIVVY_DB_PASSWORD=
+                - !Ref ParameterDBpassword
+                - '|g'' /divvycloud/prod.env'
+            - Fn::Join:
+              - ''
+              - - sed -i 's|DIVVY_SECRET_DB_HOST=mysql|DIVVY_SECRET_DB_HOST=
+                - !GetAtt
+                  - DBInstanceDivvy
+                  - Endpoint.Address
+                - '|g'' /divvycloud/prod.env'
+            - Fn::Join:
+              - ''
+              - - sed -i 's|DIVVY_SECRET_DB_PASSWORD=divvy|DIVVY_SECRET_DB_PASSWORD=
+                - !Ref ParameterDBpassword
+                - '|g'' /divvycloud/prod.env'
+            - Fn::Join:
+              - ''
+              - - sed -i 's|DIVVY_REDIS_HOST=redis|DIVVY_REDIS_HOST=
+                - !GetAtt
+                  - CacheClusterDivvy
+                  - RedisEndpoint.Address
+                - '|g'' /divvycloud/prod.env'
+            - Fn::Join:
+              - ''
+              - - 'mysql -h '
+                - !GetAtt
+                  - DBInstanceDivvy
+                  - Endpoint.Address
+                - ' -u '
+                - !Ref ParameterDBusername
+                - ' -p'
+                - !Ref ParameterDBpassword
+                - ' -e "CREATE DATABASE IF NOT EXISTS divvykeys;"'
+            - Fn::Join:
+              - ''
+              - - 'sed -i ''s|scale: 8|scale: '
+                - !FindInMap [WorkerMap, !Ref "ParameterWorkerInstanceType", workers]
+                - '|g'' /divvycloud/docker-compose.yml'
+            - sed -i '3,36d' /divvycloud/docker-compose.yml
+            - Fn::Join:
+              - ''
+              - - sed -i 's|latest|
+                - Ref: ParameterImageVersion
+                - '|g'' /divvycloud/docker-compose.yml'
+            - printf '\nDIVVY_PRODUCT_ANALYTICS_ENABLED=1' >>  /divvycloud/prod.env                             
+            - /usr/local/bin/docker-compose -f /divvycloud/docker-compose.yml up -d
+            - cat<<EOF> /etc/cron.weekly/remove-docker-images
+            - '#!/bin/sh'
+            - '# Clean up docker-images'
+            - docker image prune -f
+            - EOF
+            - chmod 755 /etc/cron.weekly/remove-docker-images
+    Type: AWS::AutoScaling::LaunchConfiguration
+  LoadBalancerDivvy:
+    DependsOn: 
+      - SecurityGroupDivvyELB
+      - VPCDivvy
+      - VPCGatewayAttachmentDivvy
+    Properties:
+      ConnectionDrainingPolicy:
+        Enabled: 'true'
+        Timeout: '300'
+      ConnectionSettings:
+        IdleTimeout: '600'
+      CrossZone: 'true'
+      HealthCheck:
+        HealthyThreshold: '3'
+        Interval: '20'
+        Target: HTTP:8001/Status
+        Timeout: '10'
+        UnhealthyThreshold: '3'
+      Listeners:
+      - InstancePort: '8001'
+        InstanceProtocol: HTTP
+        LoadBalancerPort: 443
+        Protocol: HTTPS
+        SSLCertificateId:
+          Fn::FindInMap:
+          - RegionMap
+          - Ref: AWS::Region
+          - 'SSL'
+      Scheme: internet-facing
+      SecurityGroups: 
+        - !GetAtt "SecurityGroupDivvyELB.GroupId"
+      Subnets: 
+        - !Ref SubnetDivvy1of2 
+        - !Ref SubnetDivvy2of2
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+  NetworkAclDivvy:
+    DependsOn: VPCDivvy
+    Properties:
+      VpcId: !Ref VPCDivvy
+    Type: 'AWS::EC2::NetworkAcl'
+  NetworkAclEntryDivvy1of2:
+    DependsOn: NetworkAclDivvy
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: 'true'
+      NetworkAclId: !Ref NetworkAclDivvy
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '100'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  NetworkAclEntryDivvy2of2:
+    DependsOn: NetworkAclDivvy
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      NetworkAclId: !Ref NetworkAclDivvy
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '100'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  RouteDivvyVPC2Internet:
+    DependsOn:
+      - InternetGatewayDivvy
+      - RouteTableDivvy
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGatewayDivvy
+      RouteTableId: !Ref RouteTableDivvy
+    Type: 'AWS::EC2::Route'
+  RouteTableDivvy:
+    DependsOn:
+      - VPCDivvy
+      - VPCGatewayAttachmentDivvy
+    Properties:
+      Tags:
+        - Key: Name
+          Value: DivvyCloud-RouteTable
+      VpcId: !Ref VPCDivvy
+    Type: 'AWS::EC2::RouteTable'
+  SecurityGroupDivvyELB:
+    DependsOn:
+      - VPCDivvy
+    Properties:
+      GroupDescription: Web rules for the load balancer
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: '-1'
+      SecurityGroupIngress:
+        - CidrIp: !Ref ParameterCidr
+          FromPort: '443'
+          IpProtocol: tcp
+          ToPort: '443'
+      VpcId: !Ref VPCDivvy
+    Type: 'AWS::EC2::SecurityGroup'
+  SecurityGroupDivvyRedis:
+    DependsOn: 
+      - VPCDivvy
+    Properties:
+      GroupDescription: RedisAccess
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: '-1'
+      SecurityGroupIngress:
+        - CidrIp: !FindInMap 
+            - VpcCidrs
+            - vpc
+            - cidr
+          FromPort: '6379'
+          IpProtocol: tcp
+          ToPort: '6379'
+      VpcId: !Ref VPCDivvy
+    Type: 'AWS::EC2::SecurityGroup'
+  SecurityGroupDivvyRDS:
+    DependsOn:
+      - VPCDivvy
+    Properties:
+      GroupDescription: Database Rules
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: '-1'
+      SecurityGroupIngress:
+        - CidrIp: !FindInMap 
+            - VpcCidrs
+            - vpc
+            - cidr
+          FromPort: '3306'
+          IpProtocol: tcp
+          ToPort: '3306'
+      VpcId: !Ref VPCDivvy
+    Type: 'AWS::EC2::SecurityGroup'
+  SecurityGroupDivvyWorkers:
+    DependsOn:
+      - VPCDivvy
+    Properties:
+      GroupDescription: Worker/web rules
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: '-1'
+      SecurityGroupIngress:
+        - CidrIp: !FindInMap 
+            - VpcCidrs
+            - vpc
+            - cidr
+          FromPort: '8001'
+          IpProtocol: tcp
+          ToPort: '8001'
+      VpcId: !Ref VPCDivvy
+    Type: 'AWS::EC2::SecurityGroup'
+  SubnetDivvy1of2:
+    DependsOn: VPCDivvy
+    Properties:
+      AvailabilityZone: !Select 
+        - '0'
+        - !GetAZs ''
+      CidrBlock: !FindInMap 
+        - VpcCidrs
+        - subnet1
+        - cidr
+      Tags:
+        - Key: Name
+          Value: DivvyCloud-Subnet1
+      VpcId: !Ref VPCDivvy
+    Type: 'AWS::EC2::Subnet'
+  SubnetDivvy2of2:
+    DependsOn: VPCDivvy
+    Properties:
+      AvailabilityZone: !Select 
+        - '1'
+        - !GetAZs ''
+      CidrBlock: !FindInMap 
+        - VpcCidrs
+        - subnet2
+        - cidr
+      Tags:
+        - Key: Name
+          Value: DivvyCloud-Subnet2
+      VpcId: !Ref VPCDivvy
+    Type: 'AWS::EC2::Subnet'
+  SubnetGroupDivvyRedis:
+    DependsOn:
+      - VPCDivvy
+      - SubnetDivvy1of2
+    Properties:
+      Description: Redis subnet group
+      SubnetIds:
+        - !Ref SubnetDivvy1of2
+    Type: 'AWS::ElastiCache::SubnetGroup'
+  SubnetNetworkAclAssociationDivvy1of2:
+    DependsOn:
+      - NetworkAclDivvy
+      - SubnetDivvy1of2
+    Properties:
+      NetworkAclId: !Ref NetworkAclDivvy
+      SubnetId: !Ref SubnetDivvy1of2
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+  SubnetNetworkAclAssociationDivvy2of2:
+    DependsOn:
+      - NetworkAclDivvy
+      - SubnetDivvy2of2
+    Properties:
+      NetworkAclId: !Ref NetworkAclDivvy
+      SubnetId: !Ref SubnetDivvy2of2
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+  SubnetRouteTableAssociationDivvy1of2:
+    DependsOn:
+      - SubnetDivvy1of2
+      - RouteTableDivvy
+    Properties:
+      RouteTableId: !Ref RouteTableDivvy
+      SubnetId: !Ref SubnetDivvy1of2
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+  SubnetRouteTableAssociationDivvy2of2:
+    DependsOn:
+      - SubnetDivvy2of2
+      - RouteTableDivvy
+    Properties:
+      RouteTableId: !Ref RouteTableDivvy
+      SubnetId: !Ref SubnetDivvy2of2
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'   
+  VPCDivvy:
+    Properties:
+      CidrBlock: !FindInMap 
+        - VpcCidrs
+        - vpc
+        - cidr
+      EnableDnsHostnames: 'false'
+      EnableDnsSupport: 'true'
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: DivvyCloud-VPC
+    Type: 'AWS::EC2::VPC'
+  VPCDHCPOptionsAssociationDivvy:
+    DependsOn:
+      - VPCDivvy
+      - DHCPOptionsDivvy
+    Properties:
+      DhcpOptionsId: !Ref DHCPOptionsDivvy
+      VpcId: !Ref VPCDivvy
+    Type: 'AWS::EC2::VPCDHCPOptionsAssociation'
+  VPCGatewayAttachmentDivvy:
+    DependsOn:
+      - VPCDivvy
+      - InternetGatewayDivvy
+    Properties:
+      InternetGatewayId: !Ref InternetGatewayDivvy
+      VpcId: !Ref VPCDivvy
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+
+
+
