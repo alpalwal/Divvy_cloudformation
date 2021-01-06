@@ -1,0 +1,85 @@
+#CFT for creating a cross account role to be used with your DivvyCloud instances. This is for the external accounts
+#(not the local account that is running the DivvyCloud tenant)
+#https://docs.divvycloud.com/docs/instance-assume-role-aws
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This template creates a cross account role to allow DivvyCloud to connect to this account if the software is running in a different account
+
+Resources:
+  PolicyEDHConsumer:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: DivvyCloudEDHConsumer
+      Roles:
+      - Ref: Role
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Action:
+          - events:DeleteRule
+          - events:DescribeEventBus
+          - events:DescribeRule
+          - events:PutPermission
+          - events:PutRule
+          - events:PutTargets
+          - events:RemoveTargets
+          - iam:GetPolicy
+          - iam:GetPolicyVersion
+          - iam:GetRole
+          - iam:ListPolicies
+          - iam:ListPolicyVersions
+          - organizations:DescribeOrganization
+          - sqs:ListQueues
+          - sqs:CreateQueue
+          - sqs:DeleteQueue
+          - sqs:ReceiveMessage
+          - sqs:SetQueueAttributes
+          - sqs:DeleteMessage
+          - sqs:DeleteMessageBatch
+          Effect: Allow
+          Resource: "*"
+
+  EDHConsumerEventBusPolicy:
+    Type: AWS::Events::EventBusPolicy
+    Properties: 
+        Action: "events:PutEvents"
+        Principal: "*"
+        StatementId: "EDHConsumer"
+        Condition: 
+            Type: StringEquals
+            Key: "aws:PrincipalOrgID"
+            Value: 
+              'PUT YOUR ORG ID IN HERE ###########'          
+  PolicyPowerUser:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: DivvyCloud-PowerUser-Policy
+      Roles:
+      - Ref: Role
+      PolicyDocument:
+        'Fn::Transform':
+          Name: 'AWS::Include'
+          Parameters:
+            Location: s3://get.divvycloud.com/policies/PowerUserPolicy.json
+
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            AWS: !Join [ ":", [ 'arn:aws:iam:', '786191184619', root ] ]
+          Action: sts:AssumeRole
+          Condition:
+            StringEquals:
+              sts:ExternalId: 'clouddivvy'
+
+Outputs:
+  RoleARNID:
+    Description: Your Role ARN ID
+    Value:
+      Fn::GetAtt:
+      - Role
+      - Arn

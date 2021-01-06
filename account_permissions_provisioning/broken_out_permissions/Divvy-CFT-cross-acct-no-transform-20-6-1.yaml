@@ -1,0 +1,676 @@
+#CFT for creating a cross account role to be used with your DivvyCloud instances. This is for the external accounts
+#(not the local account that is running the DivvyCloud tenant)
+#https://docs.divvycloud.com/docs/instance-assume-role-aws
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This template creates a cross account role to allow DivvyCloud to connect to this account if the software is running in a different account
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Inputs"
+        Parameters:
+          - ExternalId
+          - SourceAccountId
+          - RoleName
+      - Label:
+          default: "Permissions"
+        Parameters:
+          - TypeOfUser
+          - EDHPermissions
+    ParameterLabels:
+      TypeOfUser:
+        default: "Permissions Type"
+      EDHPermissions:
+        default: "EDH Permissions"
+      ExternalId:
+        default: "External ID"
+      SourceAccountId:
+        default: "Source Account ID (where DivvyCloud is running)"
+
+Parameters:
+  ExternalId:
+    Type: String
+    Default: divvycloud
+    AllowedPattern: '\S+'
+    ConstraintDescription: Please enter an external ID
+    Description: Enter Divvy External ID
+  SourceAccountId:
+    Type: String
+    AllowedPattern: \d{12}
+    Description: Enter source account ID that will be assuming the role. A 12 digit number is expected (ex. 123456789012)
+  TypeOfUser:
+    Type: String
+    Default: Standard User
+    AllowedValues:
+      - Standard User
+      - Power User
+    Description: Type of permissions to give (Standard for readonly, Power for read/write)
+  EDHPermissions:
+    Type: String
+    Default: None
+    AllowedValues:
+      - None
+      - Consumer
+      - Producer
+    Description: Permissions to enable DivvyCloud to configure Event Driven Harvesting (EDH)
+  OrgID:
+    Type: String
+    Description: Enter the organization ID for this account. Only needed if this is being set up for the EDH Consumer
+  RoleName:
+    Type: String
+    Description: Enter the name for the Role 
+    Default: DivvyCloudCrossAccountRole
+    AllowedPattern: '\S+'
+
+Conditions:
+  AddStandardUser: !Equals [ !Ref TypeOfUser, "Standard User" ]
+  AddPowerUser: !Equals [ !Ref TypeOfUser, "Power User" ]
+  AddEDHConsumer: !Equals [ !Ref EDHPermissions, "Consumer" ]
+  AddEDHProducer: !Equals [ !Ref EDHPermissions, "Producer" ]
+
+Resources:
+  PolicyCloudcwPutMetricLogs:
+    Condition: AddStandardUser
+    DependsOn:
+      - Role
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      ManagedPolicyName: DivvyCloud-CloudWatchPutMetricLogs-Policy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          -
+            Effect: Allow
+            Action: 
+              - cloudwatch:PutMetricData
+              - logs:CreateLogGroup
+            Resource: "*"
+          -
+            Effect: Allow
+            Action: 
+              - logs:PutLogEvents
+              - logs:CreateLogStream
+            Resource: !Join [ '', [ "arn:aws:logs:", !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":log-group:DivvyCloud-EC2:log-stream:*" ] ]
+      Roles:
+        - Ref: Role
+
+  PolicyEDHConsumer:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: AddEDHConsumer
+    Properties:
+      ManagedPolicyName: DivvyCloudEDHConsumer
+      Roles:
+      - Ref: Role
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Action:
+          - events:DeleteRule
+          - events:DescribeEventBus
+          - events:DescribeRule
+          - events:PutPermission
+          - events:PutRule
+          - events:PutTargets
+          - events:RemoveTargets
+          - iam:GetPolicy
+          - iam:GetPolicyVersion
+          - iam:GetRole
+          - iam:ListPolicies
+          - iam:ListPolicyVersions
+          - organizations:DescribeOrganization
+          - sqs:ListQueues
+          - sqs:CreateQueue
+          - sqs:DeleteQueue
+          - sqs:ReceiveMessage
+          - sqs:SetQueueAttributes
+          - sqs:DeleteMessage
+          - sqs:DeleteMessageBatch
+          Effect: Allow
+          Resource: "*"
+
+  EDHConsumerEventBusPolicy:
+    Type: AWS::Events::EventBusPolicy
+    Condition: AddEDHConsumer
+    Properties: 
+        Action: "events:PutEvents"
+        Principal: "*"
+        StatementId: "MyStatement"
+        Condition: 
+            Type: StringEquals
+            Key: "aws:PrincipalOrgID"
+            Value: 
+              Ref: OrgID
+            
+
+  PolicyEDHProducer:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: AddEDHProducer
+    Properties:
+      ManagedPolicyName: DivvyCloudEDHProducer
+      Roles:
+      - Ref: Role
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Action:
+          - events:DeleteRule
+          - events:DescribeRule
+          - events:PutRule
+          - events:PutTargets
+          - events:RemoveTargets
+          - iam:CreatePolicyVersion
+          - iam:GetPolicy
+          - iam:GetPolicyVersion
+          - iam:GetRole
+          - organizations:DescribeOrganization
+          Effect: Allow
+          Resource: "*"
+        - Effect: Allow
+          Action:
+          - iam:CreateRole
+          - iam:AttachRolePolicy
+          - iam:PassRole
+          Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/service-role/event-driven-harvest/*eventbus-role'
+        - Effect: Allow
+          Action:
+          - iam:CreatePolicy
+          - iam:CreatePolicyVersion
+          - iam:DeletePolicyVersion
+          Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:policy/service-role/event-driven-harvest/*eventbus-policy'
+          
+  PolicyPowerUser:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: AddPowerUser
+    Properties:
+      ManagedPolicyName: DivvyCloud-PowerUser-Policy
+      Roles:
+      - Ref: Role
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+            - access-analyzer:*
+            - acm:*
+            - apigateway:*
+            - athena:*
+            - autoscaling:*
+            - backup:*
+            - cloudformation:*
+            - cloudfront:*
+            - cloudsearch:*
+            - cloudtrail:*
+            - cloudwatch:*
+            - codebuild:*
+            - config:*
+            - dax:*
+            - directconnect:*
+            - dms:*
+            - ds:*
+            - dynamodb:*
+            - ec2:*
+            - ecr:*
+            - ecs:*
+            - eks:*
+            - elasticache:*
+            - elasticbeanstalk:*
+            - elasticfilesystem:*
+            - elasticloadbalancing:*
+            - elasticmapreduce:*
+            - es:*
+            - events:*
+            - firehose:*
+            - fsx:*
+            - glacier:*
+            - glue:*
+            - guardduty:*
+            - iam:*
+            - kafka:*
+            - kinesis:*
+            - kinesisvideo:*
+            - kms:*
+            - lambda:*
+            - logs:*
+            - mq:*
+            - organizations:*
+            - pricing:*
+            - pricing:GetProducts
+            - rds:*
+            - redshift:*
+            - route53:*
+            - route53domains:*
+            - s3:*
+            - sagemaker:*
+            - secretsmanager:*
+            - serverlessrepo:*
+            - ses:*
+            - shield:*
+            - sns:*
+            - sqs:*
+            - ssm:*
+            - sts:GetCallerIdentity
+            - support:*
+            - tag:*
+            - transfer:*
+            - waf-regional:*
+            - waf:*
+            - wafv2:*
+            - workspaces:*
+            Effect: Allow
+            Resource: '*'
+  #Read only policy exceeds AWS limits and must be broken into two
+  PolicyReadOnly1:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: AddStandardUser
+    Properties:
+      ManagedPolicyName: DivvyCloudStandardUserPolicy1
+      Roles:
+      - Ref: Role
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+            - access-analyzer:ListAnalyzers
+            - access-analyzer:ListFindings
+            - acm:DescribeCertificate
+            - acm:ListCertificates
+            - acm:ListTagsForCertificate
+            - apigateway:GET
+            - apigateway:GetApiKeys
+            - apigateway:GetAuthorizers
+            - apigateway:GetRestApiKeys
+            - apigateway:GetRestApis
+            - apigateway:GetRestStages
+            - athena:GetWorkGroup
+            - athena:ListWorkGroups
+            - autoscaling:DescribeAutoScalingGroups
+            - autoscaling:DescribeLaunchConfigurations
+            - autoscaling:DescribeTags
+            - backup:GetBackupVaultAccessPolicy
+            - backup:ListBackupVaults
+            - cloudformation:DescribeStackResource
+            - cloudformation:DescribeStackResources
+            - cloudformation:DescribeStacks
+            - cloudformation:GetTemplate
+            - cloudformation:ListStackResources
+            - cloudformation:ListStacks
+            - cloudfront:GetDistribution
+            - cloudfront:GetStreamingDistribution
+            - cloudfront:ListDistributions
+            - cloudfront:ListStreamingDistributions
+            - cloudfront:ListTagsForResource
+            - cloudsearch:DescribeAvailabilityOptions
+            - cloudsearch:DescribeDomainEndpointOptions
+            - cloudsearch:DescribeDomains
+            - cloudsearch:DescribeServiceAccessPolicies
+            - cloudsearch:ListDomainNames
+            - cloudtrail:DescribeTrails
+            - cloudtrail:GetEventSelectors
+            - cloudtrail:GetTrailStatus
+            - cloudwatch:DescribeAlarms
+            - cloudwatch:DescribeAlarmsForMetric 
+            - cloudwatch:GetMetricStatistics
+            - cloudwatch:ListMetrics
+            - codebuild:BatchGetProjects
+            - codebuild:ListProjects
+            - cognito-idp:DescribeUserPool
+            - cognito-idp:ListIdentityProviders
+            - cognito-idp:ListUserPools
+            - config:DescribeConfigurationRecorderStatus
+            - config:DescribeConfigurationRecorders
+            - config:DescribeDeliveryChannelStatus
+            - config:DescribeDeliveryChannels
+            - dax:DescribeClusters
+            - dax:DescribeTable
+            - dax:ListTables
+            - dax:ListTags
+            - directconnect:DescribeConnections
+            - dms:DescribeReplicationInstances
+            - ds:DescribeDirectories
+            - dynamodb:DescribeContinuousBackups
+            - dynamodb:DescribeGlobalTable
+            - dynamodb:DescribeTable
+            - dynamodb:ListBackups
+            - dynamodb:ListGlobalTables
+            - dynamodb:ListTables
+            - dynamodb:ListTagsOfResource
+            - ec2:DescribeAccountAttributes
+            - ec2:DescribeAddresses
+            - ec2:DescribeAvailabilityZones
+            - ec2:DescribeFlowLogs
+            - ec2:DescribeHosts
+            - ec2:DescribeImageAttribute
+            - ec2:DescribeImages
+            - ec2:DescribeImportImageTasks
+            - ec2:DescribeInstanceAttribute
+            - ec2:DescribeInstanceStatus
+            - ec2:DescribeInstances
+            - ec2:DescribeInternetGateways
+            - ec2:DescribeKeyPairs
+            - ec2:DescribeNatGateways
+            - ec2:DescribeNetworkAcls
+            - ec2:DescribeNetworkInterfaceAttribute
+            - ec2:DescribeNetworkInterfaces
+            - ec2:DescribePlacementGroups
+            - ec2:DescribeRegions
+            - ec2:DescribeReservedInstances
+            - ec2:DescribeRouteTables
+            - ec2:DescribeSecurityGroups
+            - ec2:DescribeSnapshotAttribute
+            - ec2:DescribeSnapshots
+            - ec2:DescribeSubnets
+            - ec2:DescribeTags
+            - ec2:DescribeTrafficMirrorTargets
+            - ec2:DescribeTransitGatewayAttachments
+            - ec2:DescribeTransitGateways
+            - ec2:DescribeVolumeStatus
+            - ec2:DescribeVolumes
+            - ec2:DescribeVpcAttribute
+            - ec2:DescribeVpcEndpointConnections
+            - ec2:DescribeVpcEndpointServiceConfigurations
+            - ec2:DescribeVpcEndpointServicePermissions
+            - ec2:DescribeVpcEndpoints
+            - ec2:DescribeVpcPeeringConnections
+            - ec2:DescribeVpcs
+            - ec2:DescribeVpnConnections
+            - ec2:GetConsoleOutput
+            - ec2:GetEbsDefaultKmsKeyId
+            - ec2:GetEbsEncryptionByDefault
+            - ecr:DescribeImageScanFindings
+            - ecr:DescribeImages
+            - ecr:DescribeRepositories
+            - ecr:GetLifecyclePolicy
+            - ecr:GetRepositoryPolicy
+            - ecr:ListTagsForResource
+            - ecs:DescribeClusters
+            - ecs:DescribeContainerInstances
+            Effect: Allow
+            Resource: '*'
+
+  #Read only policy exceeds AWS limits and must be broken into three. There is no significance to the breakdown
+  PolicyReadOnly2:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: AddStandardUser
+    Properties:
+      ManagedPolicyName: DivvyCloudStandardUserPolicy2
+      Roles:
+      - Ref: Role
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+            - ecs:DescribeTaskDefinition
+            - ecs:DescribeTasks
+            - ecs:ListClusters
+            - ecs:ListContainerInstances
+            - ecs:ListTaskDefinitions
+            - ecs:ListTasks
+            - eks:DescribeCluster
+            - eks:ListClusters
+            - elasticache:DescribeCacheClusters
+            - elasticache:DescribeCacheSubnetGroups
+            - elasticache:DescribeReplicationGroups
+            - elasticache:DescribeSnapshots
+            - elasticache:ListTagsForResource
+            - elasticbeanstalk:DescribeApplications
+            - elasticbeanstalk:DescribeConfigurationSettings
+            - elasticbeanstalk:DescribeEnvironmentResources
+            - elasticbeanstalk:DescribeEnvironments
+            - elasticbeanstalk:DescribePlatformVersion
+            - elasticfilesystem:DescribeFileSystems
+            - elasticfilesystem:DescribeMountTargetSecurityGroups
+            - elasticfilesystem:DescribeMountTargets
+            - elasticfilesystem:DescribeTags
+            - elasticloadbalancing:DescribeInstanceHealth
+            - elasticloadbalancing:DescribeListeners
+            - elasticloadbalancing:DescribeLoadBalancerAttributes
+            - elasticloadbalancing:DescribeLoadBalancerPolicies
+            - elasticloadbalancing:DescribeLoadBalancerPolicyTypes
+            - elasticloadbalancing:DescribeLoadBalancers
+            - elasticloadbalancing:DescribeRules
+            - elasticloadbalancing:DescribeTags
+            - elasticloadbalancing:DescribeTargetGroups
+            - elasticloadbalancing:DescribeTargetHealth
+            - elasticmapreduce:DescribeCluster
+            - elasticmapreduce:ListClusters
+            - elasticmapreduce:ListInstances
+            - es:DescribeElasticsearchDomains
+            - es:ListDomainNames
+            - es:ListTags
+            - events:DescribeEventBus
+            - events:ListEventBuses
+            - events:ListRules
+            - events:ListTargetsByRule
+            - firehose:DescribeDeliveryStream
+            - firehose:ListDeliveryStreams
+            - firehose:ListTagsForDeliveryStream
+            - fsx:DescribeFileSystems
+            - glacier:DescribeVault
+            - glacier:GetVaultAccessPolicy
+            - glacier:GetVaultLock
+            - glacier:ListTagsForVault
+            - glacier:ListVaults
+            - glue:GetDataCatalogEncryptionSettings
+            - glue:GetResourcePolicy
+            - glue:GetSecurityConfigurations
+            - guardduty:GetDetector
+            - guardduty:GetFindings
+            - guardduty:GetMasterAccount
+            - guardduty:ListDetectors
+            - guardduty:ListFindings
+            - guardduty:ListMembers
+            - iam:GenerateCredentialReport
+            - iam:GetAccessKeyLastUsed
+            - iam:GetAccountAuthorizationDetails
+            - iam:GetAccountPasswordPolicy
+            - iam:GetAccountSummary
+            - iam:GetCredentialReport
+            - iam:GetLoginProfile
+            - iam:GetOpenIDConnectProvider
+            - iam:GetPolicyVersion
+            - iam:GetRole
+            - iam:GetRolePolicy
+            - iam:GetSAMLProvider
+            - iam:GetServerCertificate
+            - iam:GetUser
+            - iam:GetUserPolicy
+            - iam:ListAccessKeys
+            - iam:ListAccountAliases
+            - iam:ListAttachedGroupPolicies
+            - iam:ListAttachedRolePolicies
+            - iam:ListAttachedUserPolicies
+            - iam:ListEntitiesForPolicy
+            - iam:ListGroupPolicies
+            - iam:ListGroups
+            - iam:ListGroupsForUser
+            - iam:ListInstanceProfiles
+            - iam:ListMFADevices
+            - iam:ListOpenIDConnectProviders
+            - iam:ListPolicies
+            - iam:ListPolicyVersions
+            - iam:ListRolePolicies
+            - iam:ListRoleTags
+            - iam:ListRoles
+            - iam:ListSAMLProviders
+            - iam:ListServerCertificates
+            - iam:ListSigningCertificates
+            - iam:ListUserPolicies
+            - iam:ListUserTags
+            - iam:ListUsers
+            - iam:SimulatePrincipalPolicy
+            - kafka:ListClusters
+            - kinesis:DescribeStream
+            - kinesis:ListShards
+            - kinesis:ListStreams
+            - kinesis:ListTagsForStream
+            - kinesisvideo:DescribeStream
+            - kinesisvideo:ListStreams
+            - kinesisvideo:ListTagsForStream
+            - kms:DescribeKey
+            - kms:GetKeyPolicy
+            - kms:GetKeyRotationStatus
+            - kms:ListAliases
+            - kms:ListKeys
+            - lambda:GetAccountSettings
+            Effect: Allow
+            Resource: '*'
+
+  #Read only policy exceeds AWS limits and must be broken into two. There is no significance to the breakdown
+  PolicyReadOnly3:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: AddStandardUser
+    Properties:
+      ManagedPolicyName: DivvyCloudStandardUserPolicy3
+      Roles:
+      - Ref: Role
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+            - lambda:ListFunctions
+            - lambda:ListTags
+            - logs:DescribeLogGroups
+            - logs:DescribeMetricFilters
+            - mq:DescribeBroker
+            - mq:ListBrokers
+            - organizations:DescribeOrganization
+            - organizations:DescribePolicy
+            - organizations:ListAccounts
+            - organizations:ListPolicies
+            - organizations:ListTargetsForPolicy
+            - pricing:GetProducts
+            - rds:DescribeDBClusterParameterGroups
+            - rds:DescribeDBClusterParameters
+            - rds:DescribeDBClusterSnapshots
+            - rds:DescribeDBClusters
+            - rds:DescribeDBEngineVersions
+            - rds:DescribeDBInstances
+            - rds:DescribeDBParameterGroups
+            - rds:DescribeDBParameters
+            - rds:DescribeDBSnapshots
+            - rds:DescribeDbClusterSnapshotAttributes
+            - rds:DescribeDbSnapshotAttributes
+            - rds:DescribeEventSubscriptions
+            - rds:DescribeReservedDBInstances
+            - rds:ListTagsForResource
+            - redshift:DescribeClusterParameterGroups
+            - redshift:DescribeClusterParameters
+            - redshift:DescribeClusterSnapshots
+            - redshift:DescribeClusters
+            - redshift:DescribeLoggingStatus
+            - redshift:DescribeTags
+            - route53:GetDomainDetail
+            - route53:GetHostedZone
+            - route53:ListDomains
+            - route53:ListGeoLocations
+            - route53:ListHealthChecks
+            - route53:ListHostedZones
+            - route53:ListHostedZonesByName
+            - route53:ListHostedZonesByVpc
+            - route53:ListResourceRecordSets
+            - route53:ListTagsForResource
+            - route53:ListTagsForResources
+            - route53:ListVPCAssociationAuthorizations
+            - route53domains:GetDomainDetail
+            - route53domains:ListDomains
+            - s3:GetAccessPointPolicy
+            - s3:GetAccessPointPolicyStatus
+            - s3:GetAccountPublicAccessBlock
+            - s3:GetBucketAcl
+            - s3:GetBucketCORS
+            - s3:GetBucketLocation
+            - s3:GetBucketLogging
+            - s3:GetBucketObjectLockConfiguration
+            - s3:GetBucketPolicy
+            - s3:GetBucketPolicyStatus
+            - s3:GetBucketPublicAccessBlock
+            - s3:GetBucketTagging
+            - s3:GetBucketVersioning
+            - s3:GetBucketWebsite
+            - s3:GetEncryptionConfiguration
+            - s3:GetLifecycleConfiguration
+            - s3:GetReplicationConfiguration
+            - s3:ListAccessPoints
+            - s3:ListAllMyBuckets
+            - sagemaker:DescribeNotebookInstance
+            - sagemaker:ListNotebookInstances
+            - sagemaker:ListTags
+            - secretsmanager:DescribeSecret
+            - secretsmanager:GetResourcePolicy
+            - secretsmanager:ListSecrets
+            - serverlessrepo:GetApplication
+            - serverlessrepo:GetApplicationPolicy
+            - serverlessrepo:ListApplications
+            - ses:GetIdentityDkimAttributes
+            - ses:GetIdentityMailFromDomainAttributes
+            - ses:GetIdentityNotificationAttributes
+            - ses:GetIdentityVerificationAttributes
+            - ses:ListIdentities
+            - ses:ListIdentityPolicies
+            - shield:DescribeEmergencyContactSettings
+            - shield:GetSubscriptionState
+            - shield:ListAttacks
+            - shield:ListProtections
+            - sns:GetSubscriptionAttributes
+            - sns:GetTopicAttributes
+            - sns:ListSubscriptions
+            - sns:ListTopics
+            - sqs:GetQueueAttributes
+            - sqs:ListQueueTags
+            - sqs:ListQueues
+            - ssm:GetDocument
+            - sts:GetCallerIdentity
+            - support:*
+            - tag:GetResources
+            - transfer:DescribeServer
+            - transfer:ListServers
+            - waf-regional:GetRule
+            - waf-regional:GetWebACL
+            - waf-regional:ListResourcesForWebACL
+            - waf-regional:ListRules
+            - waf-regional:ListWebACLs
+            - waf:GetChangeToken
+            - waf:GetRule
+            - waf:GetWebACL
+            - waf:ListRules
+            - waf:ListWebACLs
+            - wafv2:GetWebACL
+            - wafv2:ListLoggingConfigurations
+            - wafv2:ListResourcesForWebACL
+            - wafv2:ListWebACLs
+            - workspaces:DescribeTags
+            - workspaces:DescribeWorkspaceBundles
+            - workspaces:DescribeWorkspaceDirectories
+            - workspaces:DescribeWorkspaces
+            - workspaces:DescribeWorkspacesConnectionStatus 
+            Effect: Allow
+            Resource: '*'
+
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            AWS: !Join [ ":", [ 'arn:aws:iam:', !Ref SourceAccountId, root ] ]
+          Action: sts:AssumeRole
+          Condition:
+            StringEquals:
+              sts:ExternalId:
+                Ref: ExternalId
+
+Outputs:
+  ExternalId:
+    Description: Your External ID
+    Value:
+      Ref: ExternalId
+  RoleARNID:
+    Description: Your Role ARN ID
+    Value:
+      Fn::GetAtt:
+      - Role
+      - Arn
