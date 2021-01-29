@@ -164,7 +164,7 @@ Parameters:
     Description: Enter your username for the database.
     Type: String
   ParameterImageVersion:
-    Default: v20.6.2
+    Default: v21.1.2
     Description: DivvyCloud image version. Ex - v20.1.1
     Type: String
     AllowedPattern: v\d{2}.\d.\d
