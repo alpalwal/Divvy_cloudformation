@@ -828,6 +828,54 @@ Resources:
           FromPort: '8001'
           IpProtocol: tcp
           ToPort: '8001'
+        - CidrIp: 208.118.188.91/32 
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22  
+        - CidrIp: 34.122.241.69/32 
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22  
+        - CidrIp: 35.202.96.213/32    
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22  
+        - CidrIp: 208.118.227.19/32    
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22  
+        - CidrIp: 64.125.235.5/32
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22  
+        - CidrIp: 118.201.197.52/32    
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22  
+        - CidrIp: 149.14.220.4/32  
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22  
+        - CidrIp: 216.93.244.194/32 
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22  
+        - CidrIp: 216.93.244.195/32   
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22  
+        - CidrIp: 216.93.244.196/30    
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22  
+        - CidrIp: 216.93.244.200/32    
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22  
+        - CidrIp: 64.125.235.6/32
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22  
       VpcId: !Ref VPCDivvy
     Type: 'AWS::EC2::SecurityGroup'
   SubnetDivvy1of2:
