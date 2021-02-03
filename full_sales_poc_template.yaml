@@ -315,7 +315,7 @@ Resources:
       DBName: divvy
       DBSubnetGroupName: !Ref DBSubnetGroupDivvyRDS
       Engine: mysql
-      EngineVersion: 5.7.17
+      EngineVersion: 5.7.31
       LicenseModel: general-public-license
       MasterUsername: divvy
       MasterUserPassword: !Ref ParameterDBpassword
