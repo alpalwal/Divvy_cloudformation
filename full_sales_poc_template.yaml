@@ -434,7 +434,7 @@ Resources:
           - '
 
             '
-          - - '#!/bin/bash -xe'
+          - - '#!/bin/bash'
             - apt-get update
             - DEBIAN_FRONTEND=noninteractive apt-get upgrade -yq
             - apt-get install -y mysql-client
@@ -524,7 +524,7 @@ Resources:
           - '
 
             '
-          - - '#!/bin/bash -xe'
+          - - '#!/bin/bash'
             - apt-get update
             - DEBIAN_FRONTEND=noninteractive apt-get upgrade -yq
             - apt-get install -y mysql-client
@@ -616,7 +616,7 @@ Resources:
           - '
 
             '
-          - - '#!/bin/bash -xe'
+          - - '#!/bin/bash'
             - apt-get update
             - DEBIAN_FRONTEND=noninteractive apt-get upgrade -yq
             - apt-get install -y mysql-client
