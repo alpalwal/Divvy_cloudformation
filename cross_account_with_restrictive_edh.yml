@@ -1,0 +1,272 @@
+#CFT for creating a cross account role to be used with your DivvyCloud instances. This is for the external accounts
+#(not the local account that is running the DivvyCloud tenant)
+#https://docs.divvycloud.com/docs/instance-assume-role-aws
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This template creates a cross account role to allow DivvyCloud to connect to this account if the software is running in a different account
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Inputs
+        Parameters:
+          - ExternalId
+          - SourceAccountId
+      - Label:
+          default: Permissions
+        Parameters:
+          - TypeOfUser
+          - EDHPermissions
+    ParameterLabels:
+      TypeOfUser:
+        default: Permissions Type
+      EDHPermissions:
+        default: EDH Permissions
+      ExternalId:
+        default: External ID to authenticate cross-account trust relationship
+      SourceAccountId:
+        default: Source Account ID (where DivvyCloud is running)
+Parameters:
+  EDHPermissions:
+    Type: String
+    Default: None
+    AllowedValues:
+      - None
+      - Consumer
+      - Producer
+    Description: Permissions to enable DivvyCloud to configure Event-Driven Harvesting (EDH)
+  ExternalId:
+    Type: String
+    Default: divvycloud
+    AllowedPattern: '\S+'
+    ConstraintDescription: Please enter an external ID
+    Description: Enter Divvy External ID
+  OrgID:
+    Type: String
+    Description: Enter the organization ID for this account. Only needed if this is being set up for the EDH Consumer
+  SourceAccountId:
+    Type: String
+    AllowedPattern: \d{12}
+    Description: Enter source account ID that will be assuming the role. A 12 digit number is expected (ex. 123456789012)
+  LicenseID:
+    Type: String
+    Description: First 16 characters of your Divvy license without the dashes   
+  TypeOfUser:
+    Type: String
+    Default: Standard User
+    AllowedValues:
+      - Standard User
+      - Power User
+    Description: Type of permissions to give (Standard for readonly, Power for read/write)
+Outputs:
+  ExternalId:
+    Description: External ID to authenticate cross-account trust relationship when adding cloud account
+    Value:
+      Ref: ExternalId
+  RoleARN:
+    Description: Role ARN when adding cloud account
+    Value:
+      Fn::GetAtt:
+      - Role
+      - Arn
+Conditions:
+  AddStandardUser: !Equals [ !Ref TypeOfUser, "Standard User" ]
+  AddPowerUser: !Equals [ !Ref TypeOfUser, "Power User" ]
+  AddEDHConsumer: !Equals [ !Ref EDHPermissions, "Consumer" ]
+  AddEDHProducer: !Equals [ !Ref EDHPermissions, "Producer" ]
+Resources:
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            AWS: !Join [ ":", [ 'arn:aws:iam:', !Ref SourceAccountId, root ] ]
+          Action: sts:AssumeRole
+          Condition:
+            StringEquals:
+              sts:ExternalId:
+                Ref: ExternalId
+  PolicyPowerUser:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: AddPowerUser
+    DependsOn:
+      - Role
+    Properties:
+      ManagedPolicyName: DivvyCloud-PowerUser-Policy
+      Roles:
+      - Ref: Role
+      PolicyDocument:
+        'Fn::Transform':
+          Name: 'AWS::Include'
+          Parameters:
+            Location: s3://get.divvycloud.com/policies/PowerUserPolicy.json
+  #Read only policy exceeds AWS limits and must be broken into parts. There is no significance to the breakdown
+  PolicyReadOnly1:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: AddStandardUser
+    DependsOn:
+      - Role
+    Properties:
+      ManagedPolicyName: DivvyCloud-StandardUser-Policy1
+      Roles:
+      - Ref: Role
+      PolicyDocument:
+        'Fn::Transform':
+          Name: 'AWS::Include'
+          Parameters:
+            Location: s3://get.divvycloud.com/policies/ReadOnlyPolicy1.json
+  PolicyReadOnly2:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: AddStandardUser
+    DependsOn:
+      - Role
+    Properties:
+      ManagedPolicyName: DivvyCloud-StandardUser-Policy2
+      Roles:
+      - Ref: Role
+      PolicyDocument:
+        'Fn::Transform':
+          Name: 'AWS::Include'
+          Parameters:
+            Location: s3://get.divvycloud.com/policies/ReadOnlyPolicy2.json
+  PolicyReadOnly3:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: AddStandardUser
+    DependsOn:
+      - Role
+    Properties:
+      ManagedPolicyName: DivvyCloud-StandardUser-Policy3
+      Roles:
+      - Ref: Role
+      PolicyDocument:
+        'Fn::Transform':
+          Name: 'AWS::Include'
+          Parameters:
+            Location: s3://get.divvycloud.com/policies/ReadOnlyPolicy3.json
+  PolicyCloudWatchPutMetricLogs:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: AddStandardUser
+    DependsOn:
+      - Role
+    Properties:
+      ManagedPolicyName: DivvyCloud-CloudWatchPutMetricLogs-Policy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - cloudwatch:PutMetricData
+              - logs:CreateLogGroup
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - logs:PutLogEvents
+              - logs:CreateLogStream
+            Resource: !Join [ '', [ "arn:aws:logs:", !Ref "AWS::Region", ":", !Ref "AWS::AccountId", ":log-group:DivvyCloud-EC2:log-stream:*" ] ]
+      Roles:
+        - Ref: Role
+  PolicyEDHConsumer:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: AddEDHConsumer
+    DependsOn:
+      - Role
+    Properties:
+      ManagedPolicyName: DivvyCloud-EDH-Consumer-Policy
+      Roles:
+      - Ref: Role
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+            - organizations:DescribeOrganization
+            Effect: Allow
+            Resource: "*"
+          - Action:
+            - sqs:ListQueues
+            - sqs:CreateQueue
+            - sqs:DeleteQueue
+            - sqs:ReceiveMessage
+            - sqs:SetQueueAttributes
+            - sqs:DeleteMessage
+            - sqs:DeleteMessageBatch
+            Effect: Allow
+            Resource: !Sub 'arn:aws:sqs:*:${AWS::AccountId}:divvycloud-event-aggregator-${LicenseID}.fifo'
+          - Action:
+            - events:DeleteRule
+            - events:DescribeEventBus
+            - events:DescribeRule
+            - events:ListEventBuses
+            - events:PutPermission
+            - events:PutRule
+            - events:PutTargets
+            - events:RemovePermission
+            - events:RemoveTargets
+            Effect: Allow
+            Resource: !Sub 'arn:aws:events:*:${AWS::AccountId}:rule/divvycloud-root-producer-${LicenseID}*'
+          - Action:
+            - events:DescribeEventBus
+            Effect: Allow
+            Resource: !Sub 'arn:aws:events:*:${AWS::AccountId}:event-bus/default'
+          - Action:
+            - iam:GetPolicy
+            - iam:GetPolicyVersion
+            - iam:GetRole
+            - iam:ListPolicies
+            - iam:ListPolicyVersions
+            - iam:CreatePolicyVersion
+            - iam:DeletePolicyVersion
+            Effect: Allow
+            Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/service-role/event-driven-harvest/divvycloud-eventbus-role'
+  EventBusPolicyEDHConsumer:
+    Type: AWS::Events::EventBusPolicy
+    Condition: AddEDHConsumer
+    Properties:
+        StatementId: DivvyCloud-EventBusPolicy
+        Action: events:PutEvents
+        Principal: "*"
+        Condition:
+            Type: StringEquals
+            Key: 'aws:PrincipalOrgID'
+            Value:
+              Ref: OrgID
+  PolicyEDHProducer:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: AddEDHProducer
+    DependsOn:
+      - Role
+    Properties:
+      ManagedPolicyName: DivvyCloud-EDH-Producer-Policy
+      Roles:
+      - Ref: Role
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - events:DeleteRule
+          - events:DescribeRule
+          - events:PutRule
+          - events:PutTargets
+          - events:RemoveTargets
+          Resource: !Sub 'arn:aws:events:*:${AWS::AccountId}:rule/divvycloud*'
+        - Effect: Allow
+          Action:
+          - iam:CreateRole
+          - iam:AttachRolePolicy  
+          - iam:CreatePolicyVersion
+          - iam:DeletePolicyVersion
+          - iam:GetPolicy
+          - iam:GetPolicyVersion
+          - iam:GetRole
+          - iam:PassRole
+          - iam:CreatePolicy
+          Resource:
+          - !Sub 'arn:aws:iam::${AWS::AccountId}:policy/service-role/event-driven-harvest/divvycloud-eventbus-policy'
+          - !Sub 'arn:aws:iam::${AWS::AccountId}:role/service-role/event-driven-harvest/divvycloud-eventbus-role'
+        - Action:
+          - organizations:DescribeOrganization
+          Effect: Allow
+          Resource: "*"
