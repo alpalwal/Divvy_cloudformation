@@ -105,17 +105,17 @@ Mappings:
       '64': ami-0a7d051a1c4b54f65
   WorkerMap:
     m5.large:
-      'workers': 8    
+      'workers': 5    
     m5.xlarge:
-      'workers': 16    
+      'workers': 13    
     c4.xlarge:
-      'workers': 7    
+      'workers': 4    
     c4.2xlarge:
-      'workers': 15    
+      'workers': 12    
     c4.xlarge:
-      'workers': 8    
+      'workers': 5   
     c4.2xlarge:
-      'workers': 16         
+      'workers': 13         
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -1143,7 +1143,22 @@ Resources:
               - - 'sed -i ''s|scale: 8|scale: '
                 - !FindInMap [WorkerMap, !Ref "ParameterWorkerInstanceType", workers]
                 - '|g'' /divvycloud/docker-compose.yml'
-            - sed -i '3,36d' /divvycloud/docker-compose.yml
+            - sed -i '3,36d' /divvycloud/docker-compose.yml             
+            - echo "worker_p3:" >> /divvycloud/docker-compose.yml
+            - echo "  image: divvycloud/divvycloud:latest" >> /divvycloud/docker-compose.yml
+            - echo "  command:" >> /divvycloud/docker-compose.yml
+            - echo "    - divvycloud" >> /divvycloud/docker-compose.yml
+            - echo "    - worker" >> /divvycloud/docker-compose.yml
+            - echo "    - --queue" >> /divvycloud/docker-compose.yml
+            - echo "    - p3" >> /divvycloud/docker-compose.yml
+            - echo "  env_file:" >> /divvycloud/docker-compose.yml
+            - echo "    - ./prod.env" >> /divvycloud/docker-compose.yml
+            - echo "  environment:" >> /divvycloud/docker-compose.yml
+            - echo "    VIRTUAL_ENV: /" >> /divvycloud/docker-compose.yml
+            - echo "  restart: always" >> /divvycloud/docker-compose.yml
+            - echo "  scale: 2" >> /divvycloud/docker-compose.yml
+            - echo "  volumes:" >> /divvycloud/docker-compose.yml
+            - echo "    - ./plugins:/plugins" >> /divvycloud/docker-compose.yml
             - Fn::Join:
               - ''
               - - sed -i 's|latest|
