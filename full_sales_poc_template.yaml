@@ -123,6 +123,21 @@ Metadata:
         default: Webserver/Scheduler Instance Type     
 
 Parameters:
+  POCOwner:
+    AllowedPattern: \S{1,}
+    ConstraintDescription: Must be the filled out.
+    Description: Name of the SE creating the POC
+    Type: String
+  POCAE:
+    AllowedPattern: \S{1,}
+    ConstraintDescription: Must be the filled out.
+    Description: Name of the AE running the POC
+    Type: String
+  POCNotes:
+    AllowedPattern: \S{1,}
+    ConstraintDescription: Must be the filled out.
+    Description: Short note about the POC. Slack channel name works too
+    Type: String
   ParameterCidr:
     ConstraintDescription: Source CIDR block must be a valid notation.
     Default: 0.0.0.0/0
