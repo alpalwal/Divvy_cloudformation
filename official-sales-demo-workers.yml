@@ -105,17 +105,17 @@ Mappings:
       '64': ami-0a7d051a1c4b54f65
   WorkerMap:
     m5.large:
-      'workers': 8    
+      'workers': 6 
     m5.xlarge:
-      'workers': 16    
+      'workers': 6 
     c4.xlarge:
-      'workers': 7    
+      'workers': 5    
     c4.2xlarge:
-      'workers': 15    
+      'workers': 13    
     c4.xlarge:
-      'workers': 8    
+      'workers': 6    
     c4.2xlarge:
-      'workers': 16         
+      'workers': 14         
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -582,32 +582,32 @@ Resources:
   DivvyBacklogHigh: 
     Type: 'AWS::CloudWatch::Alarm'
     Properties:
-      AlarmDescription: Scale-up the workers ASG if divvy wait is greater than 3000 for 5 minutes
+      AlarmDescription: Scale-up the workers ASG if divvy backlog is greater than 1000 for 30 minutes
       Dimensions:
       - Name: Job Type
-        Value: Queue Wait      
+        Value: Standard      
       MetricName: Job Backlog
       Namespace: DivvyCloud
       Statistic: Average
-      Period: '300'
+      Period: '3600'
       EvaluationPeriods: '1'
-      Threshold: '3000'
+      Threshold: '20000'
       AlarmActions:
         - !Ref WorkersScaleUpPolicy
       ComparisonOperator: GreaterThanThreshold
   DivvyBacklogLow:  
     Type: 'AWS::CloudWatch::Alarm'
     Properties:
-      AlarmDescription: Scale-down the workers ASG if divvy backlog is less than 3000 for 10 minutes
+      AlarmDescription: Scale-down the workers ASG if divvy backlog is less than 1000 for 30 minutes
       Dimensions:
       - Name: Job Type
-        Value: Queue Wait
+        Value: Standard
       MetricName: Job Backlog
       Namespace: DivvyCloud
       Statistic: Average
-      Period: '300'
-      EvaluationPeriods: '2'
-      Threshold: '3000'
+      Period: '3600'
+      EvaluationPeriods: '1'
+      Threshold: '20000'
       AlarmActions:
         - !Ref WorkersScaleDownPolicy
       ComparisonOperator: LessThanThreshold
@@ -822,7 +822,9 @@ Resources:
               - - sed -i 's|latest|
                 - Ref: ParameterImageVersion
                 - '|g'' /divvycloud/docker-compose.yml'
-            - printf '\nDIVVY_PRODUCT_ANALYTICS_ENABLED=1' >>  /divvycloud/prod.env             
+            - echo "" >> /divvycloud/prod.env
+            - echo "DIVVY_INSIGHTVM_SUPPORT=1" >> /divvycloud/prod.env
+            - echo "DIVVY_EDH_INCLUDE_LICENSE_FP=1" >> /divvycloud/prod.env
             - /usr/local/bin/docker-compose -f /divvycloud/docker-compose.yml up -d
             - cat<<EOF> /etc/cron.weekly/remove-docker-images
             - '#!/bin/sh'
@@ -980,7 +982,9 @@ Resources:
               - - sed -i 's|latest|
                 - Ref: ParameterImageVersion
                 - '|g'' /divvycloud/docker-compose.yml'
-            - printf '\nDIVVY_PRODUCT_ANALYTICS_ENABLED=1' >>  /divvycloud/prod.env                             
+            - echo "" >> /divvycloud/prod.env
+            - echo "DIVVY_INSIGHTVM_SUPPORT=1" >> /divvycloud/prod.env
+            - echo "DIVVY_EDH_INCLUDE_LICENSE_FP=1" >> /divvycloud/prod.env
             - /usr/local/bin/docker-compose -f /divvycloud/docker-compose.yml up -d
             - cat<<EOF> /etc/cron.weekly/remove-docker-images
             - '#!/bin/sh'
@@ -1138,16 +1142,25 @@ Resources:
                 - ' -e "CREATE DATABASE IF NOT EXISTS divvykeys;"'
             - Fn::Join:
               - ''
-              - - 'sed -i ''s|scale: 8|scale: '
-                - !FindInMap [WorkerMap, !Ref "ParameterWorkerInstanceType", workers]
-                - '|g'' /divvycloud/docker-compose.yml'
-            - sed -i '3,36d' /divvycloud/docker-compose.yml
-            - Fn::Join:
-              - ''
               - - sed -i 's|latest|
                 - Ref: ParameterImageVersion
                 - '|g'' /divvycloud/docker-compose.yml'
-            - printf '\nDIVVY_PRODUCT_ANALYTICS_ENABLED=1' >>  /divvycloud/prod.env                             
+            - sed -i '3,36d' /divvycloud/docker-compose.yml
+            - cp /divvycloud/docker-compose.yml /divvycloud/p3tmp.yml
+            - Fn::Join:
+              - ''
+              - - 'sed -i ''s|scale: 8|scale: '
+                - !FindInMap [WorkerMap, !Ref "ParameterWorkerInstanceType", workers]
+                - '|g'' /divvycloud/docker-compose.yml'
+            - sed -i '1,2d' /divvycloud/p3tmp.yml
+            - sed -i 's/worker:/worker_p3:/g' /divvycloud/p3tmp.yml
+            - sed -i '6 a \ \ \ \ \ \ - --queue' /divvycloud/p3tmp.yml
+            - sed -i '7 a \ \ \ \ \ \ - p3' /divvycloud/p3tmp.yml
+            - sed -i 's/8/2/g' /divvycloud/p3tmp.yml
+            - cat /divvycloud/p3tmp.yml >> /divvycloud/docker-compose.yml
+            - echo "" >> /divvycloud/prod.env
+            - echo "DIVVY_INSIGHTVM_SUPPORT=1" >> /divvycloud/prod.env
+            - echo "DIVVY_EDH_INCLUDE_LICENSE_FP=1" >> /divvycloud/prod.env
             - /usr/local/bin/docker-compose -f /divvycloud/docker-compose.yml up -d
             - cat<<EOF> /etc/cron.weekly/remove-docker-images
             - '#!/bin/sh'
